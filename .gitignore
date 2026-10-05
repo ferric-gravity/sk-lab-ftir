@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+analysis/data/*.csv
+scripts/*.csv
+*.png
+!scripts/Figure 6.png
+!scripts/sens_abhay_plot.png
+!scripts/sens_data_abhay_plot.png

@@ -1,0 +1,11 @@
+# analysis/ (final pipeline, S.2.11-S.2.13)
+numpy
+pandas
+scikit-learn>=1.1
+scipy
+matplotlib
+torch
+
+# scripts/ (exploratory prototype only)
+fastai
+tqdm
