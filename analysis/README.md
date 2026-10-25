@@ -47,20 +47,89 @@ participant_id, diagnosis, <wavenumber_1>, <wavenumber_2>, ..., <wavenumber_462>
 See the docstring in `data_utils.py` for the exact schema. `data/` is
 gitignored so this file can sit there locally without being committed.
 
-## Running
+## Walkthrough — if you have the real data
+
+This is the full sequence for whoever has access to the raw spectral
+measurements and participant/diagnosis records (the one piece this repo
+deliberately does not include).
+
+### 1. Get the code
 
 ```bash
-pip install -r ../requirements.txt
+git clone https://github.com/ferric-gravity/sk-lab-ftir.git
+cd sk-lab-ftir
+pip install -r requirements.txt
+```
 
-# smoke test on whatever data you have — few trials, fast
+### 2. Shape the data into one CSV
+
+The only step that actually requires domain knowledge of the raw exports.
+Produce a single file at `analysis/data/fingerprint_spectra.csv`, one row
+per spectrum:
+
+| participant_id | diagnosis | 1800.0 | 1798.0 | ... | 900.0 |
+|---|---|---|---|---|---|
+| P001 | control | 0.142 | 0.139 | ... | 0.088 |
+| P001 | control | 0.140 | 0.141 | ... | 0.091 |
+| P002 | metastatic | 0.201 | 0.198 | ... | 0.103 |
+
+- A participant with 5 replicate ATR spectra (S.2.3) appears as 5 rows
+  sharing the same `participant_id` — this is what lets `data_utils.py`
+  group correctly.
+- `diagnosis` must be exactly `control`, `benign`, or `metastatic`.
+- The remaining columns are the 462 wavenumbers (1800→900 cm⁻¹); header =
+  wavenumber, cell = absorbance.
+
+This is almost certainly a reshape of files that already exist (per-tissue
+exports from the Agilent software, or similar) — the work is making
+`participant_id` consistent across replicates and matching the diagnosis
+spelling above.
+
+### 3. Smoke-test before committing to a full run
+
+```bash
+cd analysis
 python classify_three_way.py --data data/fingerprint_spectra.csv --quick
 python sensitivity_analysis.py --data data/fingerprint_spectra.csv --networks 5
+```
 
-# full run matching the manuscript (slow — 50 trials x 10 folds x grid search)
+`--quick` runs 2 trials instead of 50 — a couple of minutes, just to catch
+schema problems early rather than after a long run.
+
+### 4. Run the classifier for real
+
+```bash
 python classify_three_way.py --data data/fingerprint_spectra.csv
+```
+
+Slow — 10-fold CV × 50 trials × a small grid search. A GPU is strongly
+recommended; each script falls back to CPU automatically
+(`torch.cuda.is_available()`). Prints a balanced accuracy to compare
+against the manuscript's 89.4% ± 2.1%.
+
+### 5. Run the sensitivity analysis
+
+```bash
 python sensitivity_analysis.py --data data/fingerprint_spectra.csv
+```
+
+Prints the top 10 most influential wavenumbers and saves a plot — this is
+what should reproduce 1632 cm⁻¹ and 1032 cm⁻¹ as the top hits, now from
+the final three-group model rather than the exploratory binary one.
+
+### 6. Run the comparators
+
+```bash
 python chemometric_comparators.py --data data/fingerprint_spectra.csv
 ```
 
-A GPU is strongly recommended for the full run; each script falls back to
-CPU automatically (`torch.cuda.is_available()`).
+Gives the PLS-DA and SVM numbers to check against 81.2% and 85.6%.
+
+### 7. Compare against the manuscript
+
+Whatever comes out either confirms the numbers already written, or it
+doesn't — worth knowing before submission, not after a reviewer asks for
+the code.
+
+The only blocker for all of this is step 2; everything downstream just
+works once that file exists.
